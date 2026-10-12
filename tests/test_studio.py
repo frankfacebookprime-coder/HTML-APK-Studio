@@ -259,16 +259,21 @@ class AndroidGenerationTests(unittest.TestCase):
 
     def test_build_orchestration_with_fake_gradle_not_real_apk(self):
         """Prueba el flujo Python; NO compila bytecode Android ni genera un APK instalable."""
-        script = self.root / 'fake_gradle'
-        script.write_text("#!/usr/bin/env python3\nfrom pathlib import Path\nimport zipfile\np=Path('app/build/outputs/apk/debug/app-debug.apk')\np.parent.mkdir(parents=True,exist_ok=True)\nwith zipfile.ZipFile(p,'w') as z:\n    z.writestr('AndroidManifest.xml',b'fake')\n    z.writestr('resources.arsc',b'fake')\n    z.writestr('classes.dex',b'fake')\nprint('SIMULATED_GRADLE')\n")
-        script.chmod(0o755)
+        is_win = os.name == 'nt'
+        script = self.root / ('fake_gradle.bat' if is_win else 'fake_gradle')
+        if is_win:
+            script.write_text('@echo off\npython -c "import pathlib, zipfile; p=pathlib.Path(\'app/build/outputs/apk/debug/app-debug.apk\'); p.parent.mkdir(parents=True,exist_ok=True); z=zipfile.ZipFile(p,\'w\'); z.writestr(\'AndroidManifest.xml\',b\'fake\'); z.writestr(\'resources.arsc\',b\'fake\'); z.writestr(\'classes.dex\',b\'fake\'); z.close()"\necho SIMULATED_GRADLE\n')
+        else:
+            script.write_text("#!/usr/bin/env python3\nfrom pathlib import Path\nimport zipfile\np=Path('app/build/outputs/apk/debug/app-debug.apk')\np.parent.mkdir(parents=True,exist_ok=True)\nwith zipfile.ZipFile(p,'w') as z:\n    z.writestr('AndroidManifest.xml',b'fake')\n    z.writestr('resources.arsc',b'fake')\n    z.writestr('classes.dex',b'fake')\nprint('SIMULATED_GRADLE')\n")
+            script.chmod(0o755)
         logs = []
         with patch.dict(os.environ, {'HTMLAPK_STUDIO_HOME':str(self.root / 'data')}):
-            dest = c.build(self.source,'App','com.demo.app',log=logs.append,
-                           gradle_command=str(script), output=self.root / 'outputs')
-            self.assertTrue(dest.is_file())
-            self.assertTrue(any('SIMULATED_GRADLE' in line for line in logs))
-            self.assertEqual(len(c.read_json(c.data_dir() / 'history.json', [])),1)
+            with patch.object(c, 'find_build_tool', return_value=None):
+                dest = c.build(self.source,'App','com.demo.app',log=logs.append,
+                               gradle_command=str(script), output=self.root / 'outputs')
+                self.assertTrue(dest.is_file())
+                self.assertTrue(any('SIMULATED_GRADLE' in line for line in logs))
+                self.assertEqual(len(c.read_json(c.data_dir() / 'history.json', [])),1)
         # El APK simulado solo pasa comprobación superficial; NO es ejecutable.
 
     def test_release_requires_keystore(self):

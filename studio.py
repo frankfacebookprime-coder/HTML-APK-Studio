@@ -5,6 +5,7 @@ from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
+import shutil
 from pathlib import Path
 import queue
 import subprocess
@@ -28,14 +29,16 @@ PURPLE = '#9A82FF'
 class Studio:
     def __init__(self, root: tk.Tk):
         self.root = root
-        root.title('HTML APK Studio  |  Professional 0.6')
-        root.geometry('1180x820')
-        root.minsize(970, 700)
+        root.title('HTML APK Studio  |  Professional 0.7')
+        root.geometry('1100x800')
+        root.minsize(860, 650)
         root.configure(bg=BG)
         self.events = queue.Queue()
         self.current = None
         self.busy = False
         self.auto_build_on_import = tk.BooleanVar(value=True)
+        self.last_apk = None
+        self.apk_result = tk.StringVar(value='Selecciona un archivo para generar tu APK automáticamente.')
         self.preview_server = None
         self.preview_thread = None
         self.source_var = tk.StringVar(value='Ningún proyecto seleccionado')
@@ -61,7 +64,7 @@ class Studio:
         self._diagnose()
         self.root.after(120, self._drain_events)
         self.root.protocol('WM_DELETE_WINDOW', self._close)
-        self._log('HTML APK Studio 0.6 preparado. El APK no se considera validado hasta compilarlo.')
+        self._log('HTML APK Studio 0.7 preparado. El APK no se considera validado hasta compilarlo.')
 
     def _create_styles(self):
         style = ttk.Style(self.root)
@@ -103,7 +106,7 @@ class Studio:
         brand = tk.Frame(header, bg=BG)
         brand.pack(side='left')
         self._label(brand, 'HTML  APK  STUDIO', color=TEXT, size=23, bold=True)
-        self._label(brand, 'PROFESSIONAL  /  LOCAL-FIRST  /  v0.6', color=CYAN, size=9, bold=True)
+        self._label(brand, 'PROFESSIONAL  /  LOCAL-FIRST  /  v0.7', color=CYAN, size=9, bold=True)
         tk.Label(header, text='●  SISTEMA PREPARADO', bg=BG, fg=CYAN,
                  font=('Consolas', 10, 'bold')).pack(side='right')
 
@@ -116,9 +119,9 @@ class Studio:
         self.library_tab = tk.Frame(self.tabs, bg=BG)
         self.system_tab = tk.Frame(self.tabs, bg=BG)
         self.log_tab = tk.Frame(self.tabs, bg=BG)
-        for frame, title in [(self.project_tab, '01  CONVERTIR'), (self.editor_tab, '02  EDITOR'),
-                             (self.library_tab, '03  PROYECTOS'), (self.system_tab, '04  SISTEMA'),
-                             (self.log_tab, '05  REGISTRO')]:
+        for frame, title in [(self.project_tab, 'INICIO'), (self.editor_tab, 'EDITOR'),
+                             (self.library_tab, 'PROYECTOS'), (self.system_tab, 'SISTEMA'),
+                             (self.log_tab, 'REGISTRO')]:
             self.tabs.add(frame, text=title)
         self._project_ui()
         self._editor_ui()
@@ -138,77 +141,110 @@ class Studio:
         self.progress.pack(side='right')
 
     def _project_ui(self):
-        wrap = tk.Frame(self.project_tab, bg=BG)
-        wrap.pack(fill='both', expand=True, pady=12)
-        left = tk.Frame(wrap, bg=PANEL, padx=22, pady=20)
-        left.pack(side='left', fill='both', expand=True, padx=(0, 10))
-        right = tk.Frame(wrap, bg=PANEL, padx=22, pady=20, width=330)
-        right.pack(side='right', fill='both', padx=(0, 0))
-        right.pack_propagate(False)
+        """Flujo simple primero; opciones técnicas disponibles bajo demanda."""
+        # Desplazamiento vertical: los ajustes avanzados nunca quedan cortados.
+        canvas = tk.Canvas(self.project_tab, bg=BG, highlightthickness=0, bd=0)
+        scrollbar = ttk.Scrollbar(self.project_tab, orient='vertical', command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side='right', fill='y')
+        canvas.pack(side='left', fill='both', expand=True)
+        outer = tk.Frame(canvas, bg=BG)
+        window = canvas.create_window((0, 0), window=outer, anchor='nw')
+        outer.bind('<Configure>', lambda _: canvas.configure(scrollregion=canvas.bbox('all')))
+        canvas.bind('<Configure>', lambda e: canvas.itemconfigure(window, width=e.width))
 
-        self._label(left, 'PROYECTO WEB', color=CYAN, bold=True)
-        self._label(left, 'Se importa una copia editable; tus archivos originales no se modifican.', size=9, fill='x', pady=(3, 9))
-        self._entry(left, self.source_var)
-        bar = tk.Frame(left, bg=PANEL)
-        bar.pack(fill='x', pady=(0, 14))
-        self._button(bar, '+ HTML / ZIP', self._pick_file, side='left', padx=(0, 8))
-        self._button(bar, '+ CARPETA', self._pick_folder, side='left', padx=(0, 8))
-        self._button(bar, '↗ VISTA PREVIA', self._preview, side='left')
-        tk.Checkbutton(left, text='Convertir automáticamente después de importar', variable=self.auto_build_on_import,
-                       bg=PANEL, fg=TEXT, selectcolor=PANEL2, activebackground=PANEL,
-                       activeforeground=CYAN).pack(anchor='w', pady=(0, 10))
+        hero = tk.Frame(outer, bg=BG)
+        hero.pack(fill='x', pady=(0, 18))
+        self._label(hero, 'Crear aplicación', color=TEXT, size=21, bold=True, fill='x')
+        self._label(hero, 'Importa tu web, personaliza lo esencial y genera tu APK.', fill='x', pady=(4, 0))
 
-        form = tk.Frame(left, bg=PANEL)
-        form.pack(fill='both', expand=True)
-        cols = [tk.Frame(form, bg=PANEL), tk.Frame(form, bg=PANEL)]
-        for col in cols:
-            col.pack(side='left', fill='both', expand=True, padx=(0, 10))
-        self._label(cols[0], 'Nombre de la aplicación')
-        self._entry(cols[0], self.name)
-        self._label(cols[0], 'Identificador Android')
-        self._entry(cols[0], self.package)
-        self._label(cols[0], 'Versión visible')
-        self._entry(cols[0], self.version_name)
-        self._label(cols[1], 'Orientación')
-        ttk.Combobox(cols[1], textvariable=self.orientation, values=('unspecified','portrait','landscape'),
-                     state='readonly', style='Studio.TCombobox').pack(fill='x', pady=(4, 14))
-        self._label(cols[1], 'Número de versión (actualizaciones)')
-        self._entry(cols[1], self.version_code)
-        self._label(cols[1], 'Tipo de compilación')
-        ttk.Combobox(cols[1], textvariable=self.mode, values=('debug','release'),
-                     state='readonly', style='Studio.TCombobox').pack(fill='x', pady=(4, 14))
+        card = tk.Frame(outer, bg=PANEL, padx=24, pady=20)
+        card.pack(fill='both', expand=True)
+        self._label(card, '1  TU PROYECTO', color=CYAN, bold=True, fill='x')
+        self._label(card, 'HTML, ZIP o carpeta. Se crea una copia; el original no se modifica.',
+                    size=9, fill='x', pady=(6, 10))
+        pick = tk.Frame(card, bg=PANEL)
+        pick.pack(fill='x', pady=(0, 8))
+        self._button(pick, '+ ELEGIR HTML O ZIP', self._pick_file, side='left', padx=(0, 9))
+        self._button(pick, '+ ELEGIR CARPETA', self._pick_folder, side='left')
+        self._label(card, 'Archivo seleccionado', size=9, fill='x')
+        source = tk.Label(card, textvariable=self.source_var, bg=PANEL2, fg=TEXT,
+                          font=('Segoe UI', 10), anchor='w', padx=12, pady=10)
+        source.pack(fill='x', pady=(4, 18))
 
-        tk.Checkbutton(left, text='Permitir Internet (solo si la aplicación lo necesita)',
-                       variable=self.internet, bg=PANEL, fg=TEXT, selectcolor=PANEL2,
-                       activebackground=PANEL, activeforeground=CYAN).pack(anchor='w', pady=4)
-        self._label(left, 'Ícono PNG (opcional)')
-        row = tk.Frame(left, bg=PANEL)
-        row.pack(fill='x')
-        tk.Entry(row, textvariable=self.icon, bg=PANEL2, fg=TEXT, insertbackground=CYAN,
-                 relief='flat', font=('Segoe UI', 10)).pack(side='left', fill='x', expand=True, ipady=9)
-        self._button(row, 'ELEGIR', self._pick_icon, side='right', padx=(8, 0))
-        actions = tk.Frame(left, bg=PANEL)
-        actions.pack(fill='x', pady=(17, 0))
-        self._button(actions, 'GUARDAR CONFIG.', self._save_config, side='left', padx=(0, 8))
-        self._button(actions, 'VALIDAR', self._validate, side='left', padx=(0, 8))
-        self._button(actions, '⚡ GENERAR APK', self._start_build, accent=True, side='right')
+        self._label(card, '2  PERSONALIZA', color=CYAN, bold=True, fill='x', pady=(0, 9))
+        self._label(card, 'Nombre de tu aplicación', color=TEXT, fill='x')
+        self._entry(card, self.name)
+        icon_row = tk.Frame(card, bg=PANEL)
+        icon_row.pack(fill='x', pady=(0, 12))
+        self._button(icon_row, 'ELEGIR ÍCONO (OPCIONAL)', self._pick_icon, side='left')
+        tk.Label(icon_row, textvariable=self.icon, bg=PANEL, fg=MUTED,
+                 font=('Segoe UI', 9), anchor='w').pack(side='left', fill='x', expand=True, padx=12)
 
-        self._label(right, 'CENTRO DE CONTROL', color=CYAN, size=13, bold=True, fill='x')
-        self._label(right, 'Preparación y firma de Android', fill='x', pady=(4, 14))
-        self._label(right, 'Release: la contraseña NO se guarda en disco.', color=PURPLE, size=9, fill='x')
+        self.advanced_visible = tk.BooleanVar(value=False)
+        self.advanced = tk.Frame(card, bg=PANEL2, padx=16, pady=12)
+        def toggle_advanced():
+            if self.advanced_visible.get():
+                self.advanced.pack(fill='x', pady=(0, 12), before=actions)
+            else:
+                self.advanced.pack_forget()
+        self._button(card, '⚙  OPCIONES AVANZADAS  ▾', lambda: (
+            self.advanced_visible.set(not self.advanced_visible.get()), toggle_advanced()
+        ), fill='x', pady=(0, 12))
+
+        self._label(self.advanced, 'Identificador Android (paquete)', color=TEXT, fill='x')
+        self._entry(self.advanced, self.package)
+        settings = tk.Frame(self.advanced, bg=PANEL2)
+        settings.pack(fill='x')
+        a = tk.Frame(settings, bg=PANEL2)
+        b = tk.Frame(settings, bg=PANEL2)
+        a.pack(side='left', fill='both', expand=True, padx=(0, 10))
+        b.pack(side='left', fill='both', expand=True)
+        self._label(a, 'Orientación', fill='x')
+        ttk.Combobox(a, textvariable=self.orientation, values=('unspecified', 'portrait', 'landscape'),
+                     state='readonly', style='Studio.TCombobox').pack(fill='x', pady=(4, 12))
+        self._label(b, 'Tipo de compilación', fill='x')
+        ttk.Combobox(b, textvariable=self.mode, values=('debug', 'release'),
+                     state='readonly', style='Studio.TCombobox').pack(fill='x', pady=(4, 12))
+        self._label(a, 'Versión visible', fill='x')
+        self._entry(a, self.version_name)
+        self._label(b, 'Código de versión', fill='x')
+        self._entry(b, self.version_code)
+        tk.Checkbutton(self.advanced, text='Permitir acceso a Internet', variable=self.internet,
+                       bg=PANEL2, fg=TEXT, selectcolor=PANEL, activebackground=PANEL2,
+                       activeforeground=CYAN).pack(anchor='w', pady=(0, 12))
+        self._label(self.advanced, 'Firma de publicación (solo modo release)',
+                    color=PURPLE, bold=True, fill='x', pady=(4, 9))
         for title, var, secret in [('Ruta del keystore (.jks)', self.keystore, False),
-                                    ('Alias de la clave', self.alias, False),
-                                    ('Contraseña del keystore', self.store_pass, True),
-                                    ('Contraseña de la clave', self.key_pass, True)]:
-            self._label(right, title, size=9)
-            self._entry(right, var, secret)
-        self._button(right, 'BUSCAR KEYSTORE', self._pick_keystore, fill='x', pady=(0, 14))
-        self._label(right, 'RECORDATORIO', color=PURPLE, bold=True, fill='x')
-        text = ('DEBUG: firma de prueba.\n\n'
-                'RELEASE: tu clave privada (.jks).\n\n'
-                'Para actualizar, conserva paquete y clave.')
-        tk.Label(right, text=text, justify='left', wraplength=280, bg=PANEL, fg=MUTED,
-                 font=('Segoe UI', 10)).pack(fill='x', pady=(9, 0))
+                                   ('Alias de la clave', self.alias, False),
+                                   ('Contraseña del keystore', self.store_pass, True),
+                                   ('Contraseña de la clave', self.key_pass, True)]:
+            self._label(self.advanced, title, fill='x')
+            self._entry(self.advanced, var, secret)
+        self._button(self.advanced, 'BUSCAR KEYSTORE', self._pick_keystore, fill='x')
+        self._label(self.advanced, 'Las contraseñas no se guardan. Conserva tu clave para actualizar la app.',
+                    size=9, fill='x', pady=(10, 0))
+
+        actions = tk.Frame(card, bg=PANEL)
+        actions.pack(fill='x', pady=(5, 0))
+        self._label(actions, '3  GENERA TU APK', color=CYAN, bold=True, fill='x', pady=(0, 10))
+        self._button(actions, '⚡ GENERAR APK', self._start_build, accent=True, fill='x', pady=(0, 10))
+        tools = tk.Frame(actions, bg=PANEL)
+        tools.pack(fill='x')
+        self._button(tools, 'VISTA PREVIA', self._preview, side='left', padx=(0, 8))
+        self._button(tools, 'VALIDAR', self._validate, side='left', padx=(0, 8))
+        self._button(tools, 'GUARDAR AJUSTES', self._save_config, side='left')
+
+        result = tk.Frame(card, bg=PANEL2, padx=16, pady=14)
+        result.pack(fill='x', pady=(16, 0))
+        self._label(result, 'ESTADO DE TU APK', color=CYAN, bold=True, fill='x')
+        tk.Label(result, textvariable=self.apk_result, bg=PANEL2, fg=TEXT,
+                 font=('Segoe UI', 10), anchor='w', justify='left', wraplength=660).pack(fill='x', pady=(8, 10))
+        self.apk_actions = tk.Frame(result, bg=PANEL2)
+        self.apk_actions.pack(fill='x')
+        self._button(self.apk_actions, 'VER APK EN WINDOWS', self._show_apk, side='left', padx=(0, 9))
+        self._button(self.apk_actions, 'GUARDAR APK COMO...', self._save_apk_as, side='left')
+        self.apk_actions.pack_forget()
 
     def _editor_ui(self):
         top = tk.Frame(self.editor_tab, bg=BG)
@@ -272,6 +308,9 @@ class Studio:
                     self._log(value)
                 elif kind == 'imported':
                     self._set_project(value['project'])
+                    self.last_apk = None
+                    self.apk_actions.pack_forget()
+                    self.apk_result.set('Proyecto importado. Preparando compilación automática...')
                     self._log(f"Importado: {value['report']['files']} archivos. Advertencias: {len(value['report']['warnings'])}")
                     self._load_library()
                     if self.auto_build_on_import.get():
@@ -289,10 +328,13 @@ class Studio:
                 elif kind == 'built':
                     self._log('RESULTADO: ' + str(value))
                     self._refresh_history()
-                    messagebox.showinfo('APK generado', 'Archivo: ' + str(value) + '\n\nFalta probarlo en Android.')
+                    self.last_apk = Path(value)
+                    self.apk_result.set('✓ APK generado correctamente: ' + self.last_apk.name)
+                    self.apk_actions.pack(fill='x')
                 elif kind == 'error':
                     self._log('ERROR: ' + str(value))
-                    messagebox.showerror('HTML APK Studio', str(value))
+                    self.apk_result.set('No se pudo completar la operación: ' + str(value))
+                    self.apk_actions.pack_forget()
                 elif kind == 'done':
                     self.busy = False
                     self.progress.stop()
@@ -307,6 +349,10 @@ class Studio:
             return
         self.busy = True
         self.status.set(label)
+        if label == 'COMPILANDO APK...':
+            self.last_apk = None
+            self.apk_actions.pack_forget()
+            self.apk_result.set('Compilando tu APK... Espera un momento.')
         self.progress.start(12)
         def run():
             try:
@@ -316,6 +362,27 @@ class Studio:
             finally:
                 self.events.put(('done', None))
         threading.Thread(target=run, daemon=True).start()
+
+    def _show_apk(self):
+        if not self.last_apk or not self.last_apk.is_file():
+            self.apk_result.set('No se encuentra el APK generado.')
+            return
+        if sys.platform == 'win32':
+            subprocess.Popen(['explorer.exe', '/select,' + str(self.last_apk)])
+        else:
+            webbrowser.open(self.last_apk.parent.as_uri())
+
+    def _save_apk_as(self):
+        if not self.last_apk or not self.last_apk.is_file():
+            self.apk_result.set('No se encuentra el APK generado.')
+            return
+        destination = filedialog.asksaveasfilename(defaultextension='.apk',
+            initialfile=self.last_apk.name, filetypes=[('Aplicación Android', '*.apk')])
+        if destination:
+            target = Path(destination)
+            if target.resolve() != self.last_apk.resolve():
+                shutil.copy2(self.last_apk, target)
+            self.apk_result.set('✓ APK guardado en: ' + str(target))
 
     def _pick_file(self):
         path = filedialog.askopenfilename(filetypes=[('Proyecto web','*.html *.htm *.zip')])

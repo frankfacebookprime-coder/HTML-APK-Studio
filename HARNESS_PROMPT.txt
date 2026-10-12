@@ -1,0 +1,14 @@
+Quiero que pruebes HTML APK Studio v0.4 de forma autónoma y segura.
+
+1) Extrae el ZIP a una carpeta nueva, sin sobrescribir versiones anteriores.
+2) Lee README.md. Ejecuta Python: python -m unittest discover -s tests -v.
+3) Ejecuta python cli.py doctor. Verifica JDK 17, Android SDK API 35, Build Tools, Gradle 8.9.
+4) Si falta Gradle, pide autorización antes de ejecutar setup_windows.ps1 -InstallGradle; el script verifica SHA256.
+5) Si faltan Java/Android SDK, propón instalaciones oficiales y pide autorización antes de modificar el equipo.
+6) Ejecuta python cli.py validate examples/demo.
+7) Ejecuta python cli.py prepare examples/demo --name "Prueba Studio" --package com.misapps.pruebatest --dest una_carpeta_temporal_nueva. Revisa Manifest, Gradle, WebViewAssetLoader y assets.
+8) Ejecuta python cli.py build examples/demo --name "Prueba Studio" --package com.misapps.pruebatest.
+9) Comprueba que el APK exista y que apksigner verify lo acepte. Si hay emulador o Android conectado y el usuario autoriza, utiliza PROBAR_ANDROID.ps1 y verifica visualmente que abra y funcione el botón y localStorage.
+10) Informa con rutas, comandos, versiones, logs relevantes y errores corregidos. No declares prueba Android superada si no lo ejecutaste en Android.
+
+No modifiques Jarvis, n8n, Hermes ni otros proyectos. No elimines archivos ajenos. No publiques ni subas claves, contraseñas ni archivos personales. No borres versiones anteriores.

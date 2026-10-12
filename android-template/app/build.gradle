@@ -1,0 +1,41 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'com.htmlapk.studio'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'PACKAGE_TOKEN'
+        minSdk 23
+        targetSdk 35
+        versionCode VERSION_CODE_TOKEN
+        versionName 'VERSION_NAME_TOKEN'
+    }
+
+    signingConfigs {
+        release {
+            def path = System.getenv('HTMLAPK_KEYSTORE')
+            if (path != null && !path.isEmpty()) {
+                storeFile file(path)
+                storePassword System.getenv('HTMLAPK_STORE_PASSWORD')
+                keyAlias System.getenv('HTMLAPK_KEY_ALIAS')
+                keyPassword System.getenv('HTMLAPK_KEY_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.12.1'
+}

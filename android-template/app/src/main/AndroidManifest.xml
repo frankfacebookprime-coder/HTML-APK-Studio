@@ -1,0 +1,19 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    INTERNET_PERMISSION_TOKEN
+    <application
+        android:label="APP_NAME_TOKEN"
+        android:icon="ICON_TOKEN"
+        android:allowBackup="false"
+        android:usesCleartextTraffic="false"
+        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        <activity
+            android:name="com.htmlapk.studio.MainActivity"
+            android:exported="true"
+            android:screenOrientation="ORIENTATION_TOKEN">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

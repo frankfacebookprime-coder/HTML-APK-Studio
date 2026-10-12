@@ -1,0 +1,13 @@
+HTML APK Studio v0.6 - actualización segura
+
+1. CONSERVA la carpeta v0.5 y tu acceso directo actual.
+2. Extrae v0.6 en una carpeta NUEVA. NO reemplaces v0.5.
+3. Abre INICIAR_SIN_TERMINAL.vbs para iniciar sin consola.
+4. La biblioteca de proyectos y el historial siguen en %LOCALAPPDATA%\HTMLAPKStudio.
+5. En la pestaña CONVERTIR, la opción de compilación automática está activada inicialmente.
+6. En PROYECTOS, doble clic en proyecto para abrirlo; doble clic en APK del historial para abrir su carpeta.
+7. Verifica una compilación desde la interfaz antes de cambiar el acceso directo del escritorio.
+8. Si algo falla, vuelve a iniciar v0.5. No se desinstala ni se modifica Java, SDK o Gradle.
+
+Nota: para ejecutar Gradle, la versión 0.6 reutiliza las herramientas locales de la instalación v0.5,
+siempre que el diagnóstico las encuentre. El script v0.6 no instala dependencias.

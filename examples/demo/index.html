@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prueba HTML APK Studio</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,sans-serif}body{margin:0;background:#080e1d;color:#e9f6ff;min-height:100dvh;display:grid;place-items:center}
+.card{background:#14243a;border:1px solid #2b5065;border-radius:22px;padding:32px;text-align:center;width:min(85vw,400px)}
+h1{color:#48e9d2}button{border:0;border-radius:12px;background:#48e9d2;color:#07131d;font-weight:800;font-size:18px;padding:16px 25px;cursor:pointer}
+</style></head><body><main class="card"><h1>⚡ HTML APK Studio</h1><p>Aplicación de prueba sin Internet.</p>
+<p>Contador: <strong id="n">0</strong></p><button id="add">PULSAR</button>
+<p id="saved"></p></main>
+<script>let n=Number(localStorage.getItem('demo-count')||0);function render(){document.getElementById('n').textContent=n;document.getElementById('saved').textContent='Guardado localmente';}document.getElementById('add').addEventListener('click',()=>{n++;localStorage.setItem('demo-count',String(n));render()});render();</script>
+</body></html>

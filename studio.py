@@ -139,8 +139,16 @@ class Studio:
 
     def _project_ui(self):
         """Flujo simple primero; opciones técnicas disponibles bajo demanda."""
-        outer = tk.Frame(self.project_tab, bg=BG)
-        outer.pack(fill='both', expand=True, padx=12, pady=14)
+        # Desplazamiento vertical: los ajustes avanzados nunca quedan cortados.
+        canvas = tk.Canvas(self.project_tab, bg=BG, highlightthickness=0, bd=0)
+        scrollbar = ttk.Scrollbar(self.project_tab, orient='vertical', command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side='right', fill='y')
+        canvas.pack(side='left', fill='both', expand=True)
+        outer = tk.Frame(canvas, bg=BG)
+        window = canvas.create_window((0, 0), window=outer, anchor='nw')
+        outer.bind('<Configure>', lambda _: canvas.configure(scrollregion=canvas.bbox('all')))
+        canvas.bind('<Configure>', lambda e: canvas.itemconfigure(window, width=e.width))
 
         hero = tk.Frame(outer, bg=BG)
         hero.pack(fill='x', pady=(0, 18))

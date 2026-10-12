@@ -5,6 +5,7 @@ from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
+import shutil
 from pathlib import Path
 import queue
 import subprocess
@@ -35,7 +36,9 @@ class Studio:
         self.events = queue.Queue()
         self.current = None
         self.busy = False
-        self.auto_build_on_import = tk.BooleanVar(value=False)
+        self.auto_build_on_import = tk.BooleanVar(value=True)
+        self.last_apk = None
+        self.apk_result = tk.StringVar(value='Selecciona un archivo para generar tu APK automáticamente.')
         self.preview_server = None
         self.preview_thread = None
         self.source_var = tk.StringVar(value='Ningún proyecto seleccionado')
@@ -232,6 +235,17 @@ class Studio:
         self._button(tools, 'VALIDAR', self._validate, side='left', padx=(0, 8))
         self._button(tools, 'GUARDAR AJUSTES', self._save_config, side='left')
 
+        result = tk.Frame(card, bg=PANEL2, padx=16, pady=14)
+        result.pack(fill='x', pady=(16, 0))
+        self._label(result, 'ESTADO DE TU APK', color=CYAN, bold=True, fill='x')
+        tk.Label(result, textvariable=self.apk_result, bg=PANEL2, fg=TEXT,
+                 font=('Segoe UI', 10), anchor='w', justify='left', wraplength=660).pack(fill='x', pady=(8, 10))
+        self.apk_actions = tk.Frame(result, bg=PANEL2)
+        self.apk_actions.pack(fill='x')
+        self._button(self.apk_actions, 'VER APK EN WINDOWS', self._show_apk, side='left', padx=(0, 9))
+        self._button(self.apk_actions, 'GUARDAR APK COMO...', self._save_apk_as, side='left')
+        self.apk_actions.pack_forget()
+
     def _editor_ui(self):
         top = tk.Frame(self.editor_tab, bg=BG)
         top.pack(fill='x', pady=(14, 8))
@@ -294,6 +308,9 @@ class Studio:
                     self._log(value)
                 elif kind == 'imported':
                     self._set_project(value['project'])
+                    self.last_apk = None
+                    self.apk_actions.pack_forget()
+                    self.apk_result.set('Proyecto importado. Preparando compilación automática...')
                     self._log(f"Importado: {value['report']['files']} archivos. Advertencias: {len(value['report']['warnings'])}")
                     self._load_library()
                     if self.auto_build_on_import.get():
@@ -311,10 +328,13 @@ class Studio:
                 elif kind == 'built':
                     self._log('RESULTADO: ' + str(value))
                     self._refresh_history()
-                    messagebox.showinfo('APK generado', 'Archivo: ' + str(value) + '\n\nFalta probarlo en Android.')
+                    self.last_apk = Path(value)
+                    self.apk_result.set('✓ APK generado correctamente: ' + self.last_apk.name)
+                    self.apk_actions.pack(fill='x')
                 elif kind == 'error':
                     self._log('ERROR: ' + str(value))
-                    messagebox.showerror('HTML APK Studio', str(value))
+                    self.apk_result.set('No se pudo completar la operación: ' + str(value))
+                    self.apk_actions.pack_forget()
                 elif kind == 'done':
                     self.busy = False
                     self.progress.stop()
@@ -329,6 +349,10 @@ class Studio:
             return
         self.busy = True
         self.status.set(label)
+        if label == 'COMPILANDO APK...':
+            self.last_apk = None
+            self.apk_actions.pack_forget()
+            self.apk_result.set('Compilando tu APK... Espera un momento.')
         self.progress.start(12)
         def run():
             try:
@@ -338,6 +362,27 @@ class Studio:
             finally:
                 self.events.put(('done', None))
         threading.Thread(target=run, daemon=True).start()
+
+    def _show_apk(self):
+        if not self.last_apk or not self.last_apk.is_file():
+            self.apk_result.set('No se encuentra el APK generado.')
+            return
+        if sys.platform == 'win32':
+            subprocess.Popen(['explorer.exe', '/select,' + str(self.last_apk)])
+        else:
+            webbrowser.open(self.last_apk.parent.as_uri())
+
+    def _save_apk_as(self):
+        if not self.last_apk or not self.last_apk.is_file():
+            self.apk_result.set('No se encuentra el APK generado.')
+            return
+        destination = filedialog.asksaveasfilename(defaultextension='.apk',
+            initialfile=self.last_apk.name, filetypes=[('Aplicación Android', '*.apk')])
+        if destination:
+            target = Path(destination)
+            if target.resolve() != self.last_apk.resolve():
+                shutil.copy2(self.last_apk, target)
+            self.apk_result.set('✓ APK guardado en: ' + str(target))
 
     def _pick_file(self):
         path = filedialog.askopenfilename(filetypes=[('Proyecto web','*.html *.htm *.zip')])
